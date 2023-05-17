@@ -10,83 +10,180 @@ Sigwanz Nicholas
 
 Credits:
 https://www.kaggle.com/datasets/parisrohan/credit-score-classification?resource=download
-https://www.kaggle.com/code/gopidurgaprasad/amex-credit-score-model/notebook
-https://www.kaggle.com/datasets/rikdifos/credit-card-approval-prediction?select=credit_record.csv
 
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.pyplot as plt
 import pandas as pd
-from sklearn.model_selection import train_test_split, KFold, StratifiedKFold
-from sklearn.metrics import accuracy_score, classification_report, ConfusionMatrixDisplay
-from sklearn.preprocessing import LabelEncoder, StandardScaler, OneHotEncoder
-from sklearn.ensemble import RandomForestClassifier
+import matplotlib.pyplot as plt
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, AdaBoostClassifier
+from sklearn.metrics import classification_report
+from sklearn.model_selection import train_test_split, GridSearchCV, cross_val_score
+from google.colab import files
+
+# Load in data
+uploaded = files.upload()
+df = pd.read_csv('test.csv')
+df_clean = df[["Annual_Income", "Num_Credit_Inquiries", "Monthly_Balance", "Outstanding_Debt", "Credit_Mix"]]
+df_clean
+df_clean.info()
+
+# remove all rolls with none value
+df_clean = df_clean.dropna()
+df_clean.info()
+
+# check column "Credit_Mix" for unwated value
+df_clean["Credit_Mix"].value_counts()
+
+# showing the result
+df_clean["Credit_Mix"].value_counts()
+
+# remove unwanted value
+df_clean = df_clean[df_clean["Credit_Mix"].str.contains("_") == False]
+df_clean.info()
+
+# a function that checks a value to see if it can be converted to a float number
+def try_float(value):
+    try:
+      return float(value)
+    except ValueError:
+      return "_"
+
+    # iterate through the dataframe to set unwanted value to NAN
+    for ind in range(df_clean.shape[0]):
+        annual_income = df_clean.iat[ind, 0]
+        monthly_balance = df_clean.iat[ind, 2]
+        outstanding_debt = df_clean.iat[ind, 3]
+
+        x = try_float(annual_income)
+        if x == "_":
+            df_clean = df_clean.replace(annual_income, np.nan)
+
+        x = try_float(monthly_balance)
+        if x == "_":
+            df_clean = df_clean.replace(monthly_balance, np.nan)
+
+        x = try_float(outstanding_debt)
+        if x == "_":
+            df_clean = df_clean.replace(outstanding_debt, np.nan)
 
 
+# showing the result
+df_clean.info()
 
-csClassfTrain = "train.csv"
-csClassfTest = "test.csv"
-app_Rec = "application_record.csv"
-creditRec = "credit_record.csv"
+# remove all rows that has a none value
+df_clean = df_clean.dropna()
+df_clean.info()
 
-df = pd.read_csv(csClassfTrain)
+# change column "Credit_Mix" value to numbers
+from sklearn import preprocessing
+le = preprocessing.LabelEncoder()
+df_clean["Credit_Mix"] = le.fit_transform(df_clean["Credit_Mix"])
 
-df['Credit_Score'] = pd.Categorical(df['Credit_Score'], categories=['poor', 'standard', 'good'])
-encoder = OneHotEncoder()
-score_encoded = encoder.fit_transform(df[['Credit_Score']]).toarray()
+# change all column data type to float64
+df_clean = df_clean.astype(float)
+df_clean.info()
 
-# encoded ScoreData
-data_encoded = pd.concat([df.drop(['Credit_Score'], axis=1), pd.DataFrame(score_encoded)], axis=1)
+df_clean
 
+X = df_clean[["Annual_Income", "Num_Credit_Inquiries", "Monthly_Balance", "Outstanding_Debt"]]
+Y = df_clean["Credit_Mix"]
 
+# visualizing preprcessed data
+# scatter plot showing annual income vs monthly balance
+df_clean.plot(x = "Annual_Income", y = "Monthly_Balance",  kind = "scatter")
 
-print("this is the encoded data")
-print(data_encoded.head())
+#scatter plot showing credit inquiries vs debts
+df_clean.plot(x = "Num_Credit_Inquiries", y = "Outstanding_Debt",  kind = "scatter")
 
+X_train, X_test, Y_train, Y_test = train_test_split(X, Y,test_size=0.25, random_state=1)
 
-pd.set_option('display.max_columns', None)
+clf_random = RandomForestClassifier()
+clf_random.fit(X_train, Y_train)
 
-print(df.head(10))
+predicted_train = clf_random.predict(X_train)
+predicted_test = clf_random.predict(X_test)
 
-print(df.describe())
+print("Results for training data with Random Forest")
+print(classification_report(Y_train, predicted_train))
 
-#unique values for Credit_Score
-# unique_scores = df['Credit_Score'].unique()
-# print("Unique values for Credit_Score Columb " +unique_scores)
+print("Results for testing data with Random Forest")
+print(classification_report(Y_test, predicted_test))
 
+clf_ada = AdaBoostClassifier()
+clf_ada.fit(X_train, Y_train)
 
-#features (X) and target (y)
-X = data_encoded.drop(['Score_poor', 'Score_standard', 'Score_good'], axis=1)
-y = data_encoded[['Score_poor', 'Score_standard', 'Score_good']]
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+predicted_train = clf_ada.predict(X_train)
+predicted_test = clf_ada.predict(X_test)
 
+print("Results for training data with AdaBoostClassifier")
+print(classification_report(Y_train, predicted_train))
 
-num_active_cards = int(input("Enter the number of active credit cards: "))
-outstanding_debt = float(input("Enter the current outstanding debt: "))
-credit_utilization_ratio = float(input("Enter the credit utilization ratio: "))
-num_delayed_payments = int(input("Enter the number of delayed payments: "))
-num_credit_inquiries = int(input("Enter the number of credit inquiries: "))
+print("Results for testing data with AdaBoostClassifier")
+print(classification_report(Y_test, predicted_test))
 
-user_input = pd.DataFrame({
-    'Number of Active Credit Cards': [num_active_cards],
-    'Current Outstanding Debt': [outstanding_debt],
-    'Credit Utilization Ratio': [credit_utilization_ratio],
-    'Number of Delayed Payments': [num_delayed_payments],
-    'Number of Credit Inquiries': [num_credit_inquiries]
-})
+clf_GradiB = GradientBoostingClassifier()
+clf_GradiB.fit(X_train, Y_train)
 
-# train random forest classifier on input data
-rf = RandomForestClassifier(n_estimators=100, random_state=42)
-rf.fit(X_train, y_train)
+predicted_train = clf_GradiB.predict(X_train)
+predicted_test = clf_GradiB.predict(X_test)
 
-prediction = rf.predict(user_input)
+print("Results for training data with GradientBoostingClassifier")
+print(classification_report(Y_train, predicted_train))
 
-# convert the predictions back to categorical values
-y_pred_cat = pd.DataFrame(encoder.inverse_transform(prediction), columns=['Credit_Score'])
+print("Results for testing data with GradientBoostingClassifier")
+print(classification_report(Y_test, predicted_test))
 
-accuracy = accuracy_score(data_encoded.loc[X_test.index, 'Score'], y_pred_cat['Score'])
-print('Accuracy:', accuracy)
+# GRID SEARCH WIth Cross validation for Random forest
 
-print("Predicted Credit_Score: {}".format(prediction[0]))
+clf_rand = RandomForestClassifier(random_state=9090)
+param_grid = {
+    'n_estimators': [10, 100, 200],
+    'max_depth': [None, 10, 20],
+
+}
+
+gs = GridSearchCV(clf_rand, param_grid=param_grid, cv=5)
+gs.fit(X_train, Y_train)
+
+print('Best params', gs.best_params_)
+
+print('Best acuracy', gs.best_score_)
+
+# create a new random forest classifier using the best parameters that were
+# discovered using the grid search above.
+clf = RandomForestClassifier(**gs.best_params_)
+clf.fit(X_train, Y_train)
+
+predicted_train = clf_random.predict(X_train)
+predicted_test = clf_random.predict(X_test)
+
+print("Results for testing data with Random Forest")
+print(classification_report(Y_test, predicted_test))
+
+# this is cross validation only but without hyper parameter tuning
+rf = RandomForestClassifier(random_state=9090 )
+scores = cross_val_score(rf, X_train, Y_train, cv=5)
+print(scores)
+
+from sklearn import metrics
+import seaborn as sns
+# Create the Confusion Matrix
+
+cnf_matrix = metrics.confusion_matrix(Y_test, predicted_test)
+
+# Visualizing the Confusion Matrix
+class_names = [0,1] # Our diagnosis categories
+
+fig, ax = plt.subplots()
+# Setting up and visualizing the plot (do not worry about the code below!)
+tick_marks = np.arange(len(class_names))
+plt.xticks(tick_marks, class_names)
+plt.yticks(tick_marks, class_names)
+sns.heatmap(pd.DataFrame(cnf_matrix), annot=True, cmap="YlGnBu" ,fmt='g') # Creating heatmap
+ax.xaxis.set_label_position("top")
+plt.tight_layout()
+plt.title('Confusion matrix', y = 1.1)
+plt.ylabel('Actual diagnosis')
+plt.xlabel('Predicted diagnosis')
+
